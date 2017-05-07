@@ -27,13 +27,11 @@ class ParticleFilter {
 	// Number of particles to draw
 	int num_particles; 
 	
-	
-	
 	// Flag, if filter is initialized
 	bool is_initialized;
 	
 	// Vector of weights of all particles
-	std::vector<double> weights;
+	std::vector<double*> weights;
 	
 public:
 	
