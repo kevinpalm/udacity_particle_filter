@@ -19,7 +19,7 @@
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	
 	// set the number of particles
-	num_particles = 1000;
+	num_particles = 5;
 	
 	// unpack standard deviations for x, y, and theta for better readability
 	double std_x = std[0];
@@ -213,10 +213,61 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 }
 
 void ParticleFilter::resample() {
-	// TODO: Resample particles with replacement with probability proportional to their weight. 
-	// NOTE: You may find std::discrete_distribution helpful here.
-	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
+	// Placeholders for new particles
+	std::vector<double> new_x_vals;
+	std::vector<double> new_y_vals;
+	std::vector<Particle> new_particles;
+	
+	// Define generator for weighted sampling
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::discrete_distribution<> d(weights.begin(), weights.end());
+	
+	// Do the sampling
+	for (int i=0; i<num_particles; i++) {
+
+		// Choose an index
+		int chosen = d(gen);
+		new_particles.push_back(particles[chosen]);
+		new_x_vals.push_back(particles[chosen].x);
+		new_y_vals.push_back(particles[chosen].y);
+	}
+	
+	std::cout << "Old Particles:" << std::endl;
+	for (int x = 0; x < x_vals.size(); x++) {
+		std::cout << x_vals[x];
+		std:: cout << ", ";
+	}
+	std::cout << "." << std::endl;
+		for (int x = 0; x < y_vals.size(); x++) {
+		std::cout << y_vals[x];
+		std:: cout << ", ";
+	}
+	std::cout << "." << std::endl;
+	std::cout << "Weights:" << std::endl;
+	for (int x = 0; x < weights.size(); x++) {
+		std::cout << weights[x];
+		std:: cout << ", ";
+	}
+	std::cout << "." << std::endl;
+	
+	// Save the new samples
+	particles = new_particles;
+	x_vals = new_x_vals;
+	y_vals = new_y_vals;
+
+	std::cout << "New Particles:" << std::endl;
+	for (int x = 0; x < x_vals.size(); x++) {
+		std::cout << x_vals[x];
+		std:: cout << ", ";
+	}
+	std::cout << "." << std::endl;
+		for (int x = 0; x < y_vals.size(); x++) {
+		std::cout << y_vals[x];
+		std:: cout << ", ";
+	}
+	std::cout << "." << std::endl;
 }
 
 void ParticleFilter::write(std::string filename) {
