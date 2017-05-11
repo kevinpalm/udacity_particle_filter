@@ -135,6 +135,10 @@ int main() {
 		
 		// Print the cumulative weighted error
 		cout << "Cumulative mean weighted error: x " << cum_mean_error[0] << " y " << cum_mean_error[1] << " yaw " << cum_mean_error[2] << endl;
+		cout << "The ground truth x: ";
+		cout << gt[i].x;
+		cout << ", gt y: ";
+		cout << gt[i].y << endl;
 		
 		// If the error is too high, say so and then exit.
 		if (i >= time_steps_before_lock_required) {

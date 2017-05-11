@@ -19,7 +19,7 @@
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	
 	// set the number of particles
-	num_particles = 5;
+	num_particles = 10;
 	
 	// unpack standard deviations for x, y, and theta for better readability
 	double std_x = std[0];
@@ -78,16 +78,16 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	double std_y = std_pos[1];
 	double std_theta = std_pos[2];
 	
+	// generate gaussian distributions for each dimension
+	std::normal_distribution<double> dist_x(0.0, std_x);
+	std::normal_distribution<double> dist_y(0.0, std_y);
+	std::normal_distribution<double> dist_theta(0.0, std_theta);
+	
 	// lightweight random generator
 	std::default_random_engine gen;
 	
 	// Update Particles
 	for (int i = 0; i < num_particles; ++i) {
-
-		// generate gaussian distributions for each dimension
-		std::normal_distribution<double> dist_x(particles[i].x, std_x);
-		std::normal_distribution<double> dist_y(particles[i].y, std_y);
-		std::normal_distribution<double> dist_theta(particles[i].theta, std_theta);
 		
 		// check if zero yaw_rate
 		if (yaw_rate != 0.0) {
@@ -108,6 +108,10 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 		particles[i].x += dist_x(gen);
 		particles[i].y += dist_y(gen);
 		particles[i].theta += dist_theta(gen);
+		
+		// update the vector version
+		x_vals[i] = particles[i].x;
+		y_vals[i] = particles[i].y;
 		
 	}
 }
@@ -182,7 +186,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		// convert the observations to the map coordinate system
 		std::vector<LandmarkObs> mapped_observations = observations;
 		for (int i = 0; i < observations.size(); i++) {
-			mapped_observations[i].x = observations[i].x * cos(particles[p].theta) + observations[i].y * sin(particles[p].theta) + particles[p].x;
+			mapped_observations[i].x = observations[i].x * cos(particles[p].theta) - observations[i].y * sin(particles[p].theta) + particles[p].x;
 			mapped_observations[i].y = observations[i].x * sin(particles[p].theta) + observations[i].y * cos(particles[p].theta) + particles[p].y;
 		}
 		
@@ -204,7 +208,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			
 			// save the result
 			particles[p].weight = particle_probability;
-			weights[particles[p].id] = particle_probability;
+			weights[p] = particle_probability;
 			
 		} else {
 			std::cout << "Error - a particle has drifted off the map." << std::endl;
@@ -217,6 +221,7 @@ void ParticleFilter::resample() {
 	// Placeholders for new particles
 	std::vector<double> new_x_vals;
 	std::vector<double> new_y_vals;
+	std::vector<double> new_weights;
 	std::vector<Particle> new_particles;
 	
 	// Define generator for weighted sampling
@@ -232,6 +237,7 @@ void ParticleFilter::resample() {
 		new_particles.push_back(particles[chosen]);
 		new_x_vals.push_back(particles[chosen].x);
 		new_y_vals.push_back(particles[chosen].y);
+		new_weights.push_back(particles[chosen].weight);
 	}
 	
 	std::cout << "Old Particles:" << std::endl;
@@ -256,6 +262,7 @@ void ParticleFilter::resample() {
 	particles = new_particles;
 	x_vals = new_x_vals;
 	y_vals = new_y_vals;
+	weights = new_weights;
 
 	std::cout << "New Particles:" << std::endl;
 	for (int x = 0; x < x_vals.size(); x++) {
