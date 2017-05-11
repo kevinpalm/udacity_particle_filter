@@ -14,6 +14,7 @@
 
 #include <math.h>
 #include "particle_filter.h"
+#include "map.h"
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	
@@ -36,6 +37,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// size of vectors for storing weights and particles
 	weights.resize(num_particles);
 	particles.resize(num_particles);
+	x_vals.resize(num_particles);
+	y_vals.resize(num_particles);
 	
 	// Generate Particles
 	for (int i = 0; i < num_particles; ++i) {
@@ -50,8 +53,12 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 		p.theta = dist_theta(gen);
 		p.weight = 1.0;
 		
-		// save a pointer to weights vector
-		weights[i] = &p.weight;
+		// save to weights vector
+		weights[i] = p.weight;
+		
+		// save to x and y coordinates
+		x_vals[i] = p.x;
+		y_vals[i] = p.y;
 		
 		// save the particle
 		particles[i] = p;
@@ -106,26 +113,103 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 }
 
 void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) {
-	// TODO: Find the predicted measurement that is closest to each observed measurement and assign the 
-	//   observed measurement to this particular landmark.
-	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
-	//   implement this method and use it as a helper during the updateWeights phase.
-
+	
+	// iterate through each observation
+	for (int o = 0; o < observations.size(); o++) {
+		
+		// placeholder list for elucidian distances
+		std::vector<double> distances(predicted.size());
+		
+		// iterate through each prediction
+		for (int p = 0; p < predicted.size(); p++) {
+			distances[p] = sqrt((predicted[p].x - observations[o].x) * (predicted[p].x - observations[o].x) + (predicted[p].y - observations[o].y) * (predicted[p].y - observations[o].y));
+		}
+		
+		// find the index of the minimum distance
+		int min_index = std::min_element(distances.begin(), distances.end()) - distances.begin();
+		
+		// set the associated ID
+		observations[o].id = predicted[min_index].id;
+	}
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
 		std::vector<LandmarkObs> observations, Map map_landmarks) {
-	// TODO: Update the weights of each particle using a mult-variate Gaussian distribution. You can read
-	//   more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
-	// NOTE: The observations are given in the VEHICLE'S coordinate system. Your particles are located
-	//   according to the MAP'S coordinate system. You will need to transform between the two systems.
-	//   Keep in mind that this transformation requires both rotation AND translation (but no scaling).
-	//   The following is a good resource for the theory:
-	//   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
-	//   and the following is a good resource for the actual equation to implement (look at equation 
-	//   3.33. Note that you'll need to switch the minus sign in that equation to a plus to account 
-	//   for the fact that the map's y-axis actually points downwards.)
-	//   http://planning.cs.uiuc.edu/node99.html
+	
+	// Determine our region of interest
+	auto x_ends = std::minmax_element(x_vals.begin(), x_vals.end());
+	double x_min = *x_ends.first - sensor_range;
+	double x_max = *x_ends.second + sensor_range;
+	auto y_ends = std::minmax_element(y_vals.begin(), y_vals.end());
+	double y_min = *y_ends.first - sensor_range;
+	double y_max = *y_ends.second + sensor_range;
+	
+	// Create a smaller map which only includes the region of interest
+	Map sliced_map;
+	for (int i = 0; i < map_landmarks.landmark_list.size(); ++i) {
+		if ((map_landmarks.landmark_list[i].x_f >= x_min) &&
+		(map_landmarks.landmark_list[i].x_f <= x_max) &&
+		(map_landmarks.landmark_list[i].y_f >= y_min) &&
+		(map_landmarks.landmark_list[i].y_f <= y_max)) {
+			sliced_map.landmark_list.push_back(map_landmarks.landmark_list[i]);
+		}
+	}
+
+	// helpers for multivariate Gaussian distribution later
+	double x_std = std_landmark[0];
+	double y_std = std_landmark[0];
+	double x_var = sqrt(x_std);
+	double y_var = sqrt(y_std);
+	
+	// iterate through the vector of particles
+	for (int p = 0; p < num_particles; ++p) {
+		
+		// pull out the predicted landmarks that are relevent to this particle
+		std::vector<LandmarkObs> predicted_observations;
+		for (int i = 0; i < sliced_map.landmark_list.size(); ++i) {
+			if ((sliced_map.landmark_list[i].x_f >= particles[p].x - sensor_range) &&
+				(sliced_map.landmark_list[i].x_f <= particles[p].x + sensor_range) &&
+				(sliced_map.landmark_list[i].y_f >= particles[p].y - sensor_range) &&
+				(sliced_map.landmark_list[i].y_f <= particles[p].y + sensor_range)) {
+					LandmarkObs lndmrk;
+					lndmrk.x = sliced_map.landmark_list[i].x_f;
+					lndmrk.y = sliced_map.landmark_list[i].y_f;
+					lndmrk.id = i;
+					predicted_observations.push_back(lndmrk);
+			}
+		}
+		
+		// convert the observations to the map coordinate system
+		std::vector<LandmarkObs> mapped_observations = observations;
+		for (int i = 0; i < observations.size(); i++) {
+			mapped_observations[i].x = observations[i].x * cos(particles[p].theta) + observations[i].y * sin(particles[p].theta) + particles[p].x;
+			mapped_observations[i].y = observations[i].x * sin(particles[p].theta) + observations[i].y * cos(particles[p].theta) + particles[p].y;
+		}
+		
+		// make sure we have landmarks in our sensor range
+		if (predicted_observations.size() > 0) {
+			
+			// associate the converted observations each to their nearest landmark
+			dataAssociation(predicted_observations, mapped_observations);
+			
+			// placeholder for this particle's weight
+			double particle_probability = 1.0;
+			
+			// compute multivariate Gaussian probability
+			for (int i = 0; i < mapped_observations.size(); i++) {
+				double x_diff = mapped_observations[i].x - predicted_observations[mapped_observations[i].id].x;
+				double y_diff = mapped_observations[i].y - predicted_observations[mapped_observations[i].id].y;
+				particle_probability *= (1/(2*M_PI*x_var*y_var))*exp(-((x_diff*x_diff)/(2*x_std) + (y_diff*y_diff)/(2*y_std)));
+			}
+			
+			// save the result
+			particles[p].weight = particle_probability;
+			weights[particles[p].id] = particle_probability;
+			
+		} else {
+			std::cout << "Error - a particle has drifted off the map." << std::endl;
+		}	
+	}
 }
 
 void ParticleFilter::resample() {

@@ -31,7 +31,11 @@ class ParticleFilter {
 	bool is_initialized;
 	
 	// Vector of weights of all particles
-	std::vector<double*> weights;
+	std::vector<double> weights;
+	
+	// X and Y vectors
+	std::vector<double> x_vals;
+	std::vector<double> y_vals;
 	
 public:
 	
@@ -93,7 +97,7 @@ public:
 	 */
 	void resample();
 	
-	/*
+	/**
 	 * write Writes particle positions to a file.
 	 * @param filename File to write particle positions to.
 	 */
