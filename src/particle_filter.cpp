@@ -178,7 +178,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 					LandmarkObs lndmrk;
 					lndmrk.x = sliced_map.landmark_list[i].x_f;
 					lndmrk.y = sliced_map.landmark_list[i].y_f;
-					lndmrk.id = i;
+					lndmrk.id = sliced_map.landmark_list[i].id_i;
 					predicted_observations.push_back(lndmrk);
 			}
 		}
@@ -201,8 +201,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			
 			// compute multivariate Gaussian probability
 			for (int i = 0; i < mapped_observations.size(); i++) {
-				double x_diff = mapped_observations[i].x - predicted_observations[mapped_observations[i].id].x;
-				double y_diff = mapped_observations[i].y - predicted_observations[mapped_observations[i].id].y;
+				double x_diff = mapped_observations[i].x - map_landmarks.landmark_list[mapped_observations[i].id-1].x_f;
+				double y_diff = mapped_observations[i].y - map_landmarks.landmark_list[mapped_observations[i].id-1].y_f;
 				particle_probability *= (1/(2*M_PI*x_var*y_var))*exp(-((x_diff*x_diff)/(2*x_std) + (y_diff*y_diff)/(2*y_std)));
 			}
 			
